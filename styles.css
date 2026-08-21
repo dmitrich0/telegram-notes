@@ -1,0 +1,58 @@
+:root {
+  --bg: var(--tg-theme-bg-color, #f6f6f6);
+  --secondary-bg: var(--tg-theme-secondary-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #161616);
+  --hint: var(--tg-theme-hint-color, #8b8b91);
+  --link: var(--tg-theme-link-color, #2678d9);
+  --button: var(--tg-theme-button-color, #2678d9);
+  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  --danger: #e05252;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+.app { min-height: 100dvh; padding: max(12px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); }
+.screen { min-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))); }
+.topbar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.5px; }
+.icon-button, .back-button { border: 0; color: var(--button-text); background: var(--button); cursor: pointer; }
+.icon-button { width: 38px; height: 38px; border-radius: 50%; font-size: 29px; line-height: 32px; }
+.icon-button:active, .primary-button:active { opacity: .75; transform: scale(.97); }
+.notes-list { margin: 14px -16px 0; }
+.note-row { width: 100%; display: block; padding: 15px 16px; text-align: left; color: inherit; background: var(--secondary-bg); border: 0; border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); cursor: pointer; }
+.note-row:first-child { border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); }
+.note-row:active { background: color-mix(in srgb, var(--secondary-bg) 88%, var(--hint)); }
+.note-title { display: block; overflow: hidden; font-weight: 600; font-size: 16px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.note-time { display: block; margin-top: 4px; color: var(--hint); font-size: 13px; }
+.empty-state { max-width: 300px; margin: 18vh auto 0; text-align: center; }
+.telegram-only-message { max-width: 330px; margin: 22vh auto 0; text-align: center; }
+.telegram-only-message h1 { margin: 14px 0 7px; font-size: 22px; }
+.telegram-only-message p { margin: 0; color: var(--hint); line-height: 1.45; }
+.empty-icon { color: var(--button); font-size: 36px; }
+.empty-state h2 { margin: 14px 0 6px; font-size: 20px; }
+.empty-state p { margin: 0 0 22px; color: var(--hint); line-height: 1.45; }
+.primary-button { border: 0; border-radius: 11px; padding: 12px 18px; color: var(--button-text); background: var(--button); font-weight: 600; cursor: pointer; }
+.editor-topbar { justify-content: initial; }
+.back-button { width: 34px; height: 34px; padding: 0 0 4px; border-radius: 50%; font-size: 32px; line-height: 24px; }
+.save-status { flex: 1; overflow: hidden; color: var(--hint); font-size: 14px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.delete-button { padding: 7px 0 7px 10px; color: var(--danger); background: transparent; border: 0; font-size: 14px; cursor: pointer; }
+.editor-fields { display: flex; flex-direction: column; height: calc(100dvh - 74px - max(12px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))); }
+.title-input, .body-input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; }
+.title-input { padding: 19px 0 12px; font-size: 24px; font-weight: 700; line-height: 1.2; }
+.body-input { flex: 1; min-height: 180px; padding: 8px 0; resize: none; font-size: 17px; line-height: 1.5; }
+.title-input::placeholder, .body-input::placeholder { color: var(--hint); opacity: 1; }
+.limit-status { min-height: 22px; margin: 4px 0 0; color: var(--hint); font-size: 12px; text-align: right; }
+.limit-status.warning { color: #c47f15; }
+.limit-status.error, .notice.error { color: var(--danger); }
+.notice { margin: 10px 0; padding: 10px 12px; color: var(--hint); background: var(--secondary-bg); border-radius: 10px; font-size: 14px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (min-width: 700px) { .app { max-width: 700px; margin: auto; } .notes-list { margin-right: 0; margin-left: 0; } .note-row { border-right: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); border-left: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); } }

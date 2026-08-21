@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Заметки</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <main class="app" id="app">
+      <section class="screen list-screen" id="list-screen" aria-labelledby="list-title">
+        <header class="topbar">
+          <h1 id="list-title">Заметки</h1>
+          <button class="icon-button add-button" id="create-note" type="button" aria-label="Создать заметку">+</button>
+        </header>
+        <div class="notice" id="list-notice" role="status" hidden></div>
+        <div class="notes-list" id="notes-list" aria-live="polite"></div>
+        <section class="empty-state" id="empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">✦</div>
+          <h2>Заметок пока нет</h2>
+          <p>Сохраните мысль, идею или важную деталь.</p>
+          <button class="primary-button" id="create-first-note" type="button">Создать заметку</button>
+        </section>
+      </section>
+
+      <section class="screen editor-screen" id="editor-screen" aria-label="Редактор заметки" hidden>
+        <header class="topbar editor-topbar">
+          <button class="back-button" id="back-to-list" type="button" aria-label="К списку заметок">‹</button>
+          <span class="save-status" id="save-status" aria-live="polite"></span>
+          <button class="delete-button" id="delete-note" type="button">Удалить</button>
+        </header>
+        <div class="editor-fields">
+          <label class="sr-only" for="note-title">Название заметки</label>
+          <input id="note-title" class="title-input" type="text" maxlength="160" placeholder="Новая заметка" autocomplete="off" />
+          <label class="sr-only" for="note-body">Текст заметки</label>
+          <textarea id="note-body" class="body-input" placeholder="Начните писать…" spellcheck="true"></textarea>
+          <p class="limit-status" id="limit-status" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
