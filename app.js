@@ -349,29 +349,27 @@
 
   // A left swipe must finish beyond this distance. Moving the finger back cancels deletion.
   const DELETE_SWIPE_DISTANCE = 96;
-  notesList.addEventListener('pointerdown', (event) => {
-    const row = event.target.closest('.note-row');
-    if (!row || (event.pointerType === 'mouse' && event.button !== 0)) return;
+  function startDeleteSwipe(row, key, startX, startY) {
     swipeState = {
       id: row.dataset.id,
       item: row.closest('.swipe-note'),
       row,
       indicator: row.closest('.swipe-note').querySelector('.swipe-delete-indicator'),
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
+      key,
+      startX,
+      startY,
       isHorizontal: false
     };
-  });
-  notesList.addEventListener('pointermove', (event) => {
-    if (!swipeState || event.pointerId !== swipeState.pointerId) return;
-    const deltaX = event.clientX - swipeState.startX;
-    const deltaY = event.clientY - swipeState.startY;
+  }
+  function moveDeleteSwipe(key, clientX, clientY) {
+    if (!swipeState || key !== swipeState.key) return false;
+    const deltaX = clientX - swipeState.startX;
+    const deltaY = clientY - swipeState.startY;
     if (!swipeState.isHorizontal) {
       if (Math.abs(deltaX) < 12) return;
       if (Math.abs(deltaX) <= Math.abs(deltaY)) {
         swipeState = null;
-        return;
+        return false;
       }
       swipeState.isHorizontal = true;
     }
@@ -380,12 +378,13 @@
     swipeState.item.classList.toggle('armed', offset <= -DELETE_SWIPE_DISTANCE);
     swipeState.row.style.transform = `translateX(${offset}px)`;
     swipeState.indicator.style.opacity = String(Math.min(1, Math.abs(offset) / 72));
-  });
-  function finishDeleteSwipe(event) {
-    if (!swipeState || event.pointerId !== swipeState.pointerId) return;
+    return true;
+  }
+  function finishDeleteSwipe(key, clientX) {
+    if (!swipeState || key !== swipeState.key) return;
     const state = swipeState;
     swipeState = null;
-    const finalDistance = event.clientX - state.startX;
+    const finalDistance = clientX - state.startX;
     // Use the final position, not the furthest point: returning the finger cancels the swipe.
     if (state.isHorizontal && finalDistance <= -DELETE_SWIPE_DISTANCE) {
       suppressOpenUntil = Date.now() + 350;
@@ -393,7 +392,8 @@
       state.item.classList.add('deleting');
       state.row.style.transform = `translateX(-${DELETE_SWIPE_DISTANCE}px)`;
       state.indicator.style.opacity = '1';
-      tg?.HapticFeedback?.impactOccurred('light');
+      tg?.HapticFeedback?.impactOccurred('medium');
+      navigator.vibrate?.(18);
       setTimeout(() => deleteNoteBySwipe(state.id), 130);
       return;
     }
@@ -401,14 +401,52 @@
     state.row.style.transform = '';
     state.indicator.style.opacity = '';
   }
-  notesList.addEventListener('pointerup', finishDeleteSwipe);
-  notesList.addEventListener('pointercancel', () => {
-    if (!swipeState) return;
+  function cancelDeleteSwipe(key) {
+    if (!swipeState || key !== swipeState.key) return;
     const state = swipeState;
     swipeState = null;
     state.item.classList.remove('dragging', 'armed');
     state.row.style.transform = '';
     state.indicator.style.opacity = '';
+  }
+
+  // Telegram mobile clients reliably send Touch Events. Pointer Events cover desktop and a mouse.
+  notesList.addEventListener('touchstart', (event) => {
+    const row = event.target.closest('.note-row');
+    const touch = event.changedTouches[0];
+    if (row && touch) startDeleteSwipe(row, `touch-${touch.identifier}`, touch.clientX, touch.clientY);
+  }, { passive: true });
+  notesList.addEventListener('touchmove', (event) => {
+    if (!swipeState || !String(swipeState.key).startsWith('touch-')) return;
+    const touchId = Number(String(swipeState.key).slice(6));
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === touchId);
+    if (touch && moveDeleteSwipe(swipeState.key, touch.clientX, touch.clientY)) event.preventDefault();
+  }, { passive: false });
+  notesList.addEventListener('touchend', (event) => {
+    if (!swipeState || !String(swipeState.key).startsWith('touch-')) return;
+    const touchId = Number(String(swipeState.key).slice(6));
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === touchId);
+    if (touch) finishDeleteSwipe(swipeState.key, touch.clientX);
+  });
+  notesList.addEventListener('touchcancel', () => {
+    if (swipeState && String(swipeState.key).startsWith('touch-')) cancelDeleteSwipe(swipeState.key);
+  });
+
+  notesList.addEventListener('pointerdown', (event) => {
+    const row = event.target.closest('.note-row');
+    if (!row || event.pointerType === 'touch' || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    startDeleteSwipe(row, `pointer-${event.pointerId}`, event.clientX, event.clientY);
+    try { row.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional. */ }
+  });
+  notesList.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'touch') return;
+    if (moveDeleteSwipe(`pointer-${event.pointerId}`, event.clientX, event.clientY)) event.preventDefault();
+  });
+  notesList.addEventListener('pointerup', (event) => {
+    if (event.pointerType !== 'touch') finishDeleteSwipe(`pointer-${event.pointerId}`, event.clientX);
+  });
+  notesList.addEventListener('pointercancel', (event) => {
+    if (event.pointerType !== 'touch') cancelDeleteSwipe(`pointer-${event.pointerId}`);
   });
 
   tg?.BackButton?.onClick(returnToList);
