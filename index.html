@@ -15,6 +15,7 @@
           <h1 id="list-title">Заметки</h1>
           <button class="icon-button add-button" id="create-note" type="button" aria-label="Создать заметку"><span aria-hidden="true">+</span></button>
         </header>
+        <div class="pull-to-refresh" id="pull-to-refresh" aria-live="polite"><span class="refresh-symbol" aria-hidden="true">↓</span><span id="refresh-label">Потяните, чтобы обновить</span></div>
         <div class="notice" id="list-notice" role="status" hidden></div>
         <div class="notes-list" id="notes-list" aria-live="polite"></div>
         <section class="empty-state" id="empty-state" hidden>
@@ -38,6 +39,13 @@
           <label class="sr-only" for="note-body">Текст заметки</label>
           <textarea id="note-body" class="body-input" placeholder="Начните писать…" spellcheck="true"></textarea>
           <p class="limit-status" id="limit-status" aria-live="polite"></p>
+        </div>
+        <div class="note-skeleton" id="note-skeleton" hidden aria-label="Загрузка заметки">
+          <div class="skeleton-line skeleton-title"></div>
+          <div class="skeleton-line skeleton-paragraph"></div>
+          <div class="skeleton-line skeleton-paragraph short"></div>
+          <div class="skeleton-line skeleton-paragraph"></div>
+          <div class="skeleton-line skeleton-paragraph medium"></div>
         </div>
       </section>
     </main>
