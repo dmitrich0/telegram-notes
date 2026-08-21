@@ -20,6 +20,7 @@
   const titleInput = el('note-title');
   const bodyInput = el('note-body');
   const saveStatus = el('save-status');
+  const retrySave = el('retry-save');
   const limitStatus = el('limit-status');
 
   let index = [];
@@ -119,10 +120,7 @@
 
   function setSaveStatus(message, canRetry = false) {
     saveStatus.textContent = message;
-    saveStatus.hidden = !message;
-    saveStatus.classList.toggle('retry', canRetry);
-    saveStatus.disabled = !canRetry;
-    saveStatus.title = canRetry ? 'Нажмите, чтобы повторить сохранение' : '';
+    retrySave.hidden = !canRetry;
   }
 
   async function loadIndex() {
@@ -245,16 +243,19 @@
         if (operationId !== saveOperationId) return;
         await storageSet(INDEX_KEY, JSON.stringify(nextIndex));
         if (operationId !== saveOperationId) return;
-        currentNote = note;
         index = nextIndex;
-        hasUnsavedChanges = false;
+        if (currentNote?.id === note.id) {
+          currentNote = note;
+          hasUnsavedChanges = false;
+        }
+        if (!listScreen.hidden) renderList();
       })();
       await Promise.race([write, timeout.promise]);
       if (operationId !== saveOperationId) throw new Error('Сохранение отменено по тайм-ауту');
-      setSaveStatus(formatSavedAt(note.updatedAt));
+      if (currentNote?.id === note.id) setSaveStatus(formatSavedAt(note.updatedAt));
       return true;
     } catch (error) {
-      setSaveStatus('Не сохранено — повторить', true);
+      if (currentNote?.id === note.id) setSaveStatus('Не сохранено', true);
       showNotice(`Не удалось сохранить: ${error.message}. Текст остаётся в редакторе.`, true);
       return false;
     } finally {
@@ -270,9 +271,10 @@
     saveTimer = setTimeout(saveCurrentNote, AUTOSAVE_DELAY);
   }
 
-  async function returnToList() {
-    await saveCurrentNote();
-    if (hasUnsavedChanges) return;
+  function returnToList() {
+    clearTimeout(saveTimer);
+    // The list must open immediately. The request continues in the background.
+    if (hasUnsavedChanges && !saving) saveCurrentNote();
     editorScreen.hidden = true;
     listScreen.hidden = false;
     tg?.BackButton?.hide();
@@ -305,7 +307,7 @@
   el('create-first-note').addEventListener('click', newNote);
   el('back-to-list').addEventListener('click', returnToList);
   el('delete-note').addEventListener('click', deleteCurrentNote);
-  saveStatus.addEventListener('click', () => {
+  retrySave.addEventListener('click', () => {
     if (!saving && hasUnsavedChanges) saveCurrentNote();
   });
   notesList.addEventListener('click', (event) => {
