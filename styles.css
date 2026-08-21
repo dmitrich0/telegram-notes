@@ -25,7 +25,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .topbar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.5px; }
 .icon-button, .back-button { border: 0; color: var(--button-text); background: var(--button); cursor: pointer; }
-.icon-button { width: 38px; height: 38px; border-radius: 50%; font-size: 29px; line-height: 32px; }
+.icon-button { display: grid; width: 38px; height: 38px; padding: 0; place-items: center; border-radius: 50%; font-size: 29px; line-height: 1; }
 .icon-button:active, .primary-button:active { opacity: .75; transform: scale(.97); }
 .notes-list { margin: 14px -16px 0; }
 .note-row { width: 100%; display: block; padding: 15px 16px; text-align: left; color: inherit; background: var(--secondary-bg); border: 0; border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); cursor: pointer; }
@@ -43,13 +43,15 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.5px; }
 .primary-button { border: 0; border-radius: 11px; padding: 12px 18px; color: var(--button-text); background: var(--button); font-weight: 600; cursor: pointer; }
 .editor-topbar { justify-content: initial; }
 .back-button { width: 34px; height: 34px; padding: 0 0 4px; border-radius: 50%; font-size: 32px; line-height: 24px; }
-.save-status { flex: 1; overflow: hidden; color: var(--hint); font-size: 14px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.save-status { flex: 1; min-width: 0; overflow: hidden; padding: 6px; color: var(--hint); background: transparent; border: 0; font-size: 14px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.save-status.retry { color: var(--link); cursor: pointer; }
 .delete-button { padding: 7px 0 7px 10px; color: var(--danger); background: transparent; border: 0; font-size: 14px; cursor: pointer; }
 .editor-fields { display: flex; flex-direction: column; height: calc(100dvh - 74px - max(12px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))); }
 .title-input, .body-input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; }
 .title-input { padding: 19px 0 12px; font-size: 24px; font-weight: 700; line-height: 1.2; }
 .body-input { flex: 1; min-height: 180px; padding: 8px 0; resize: none; font-size: 17px; line-height: 1.5; }
-.title-input::placeholder, .body-input::placeholder { color: var(--hint); opacity: 1; }
+.title-input::placeholder { color: var(--hint); opacity: 1; }
+.body-input::placeholder { color: color-mix(in srgb, var(--hint) 80%, var(--text)); opacity: 1; }
 .limit-status { min-height: 22px; margin: 4px 0 0; color: var(--hint); font-size: 12px; text-align: right; }
 .limit-status.warning { color: #c47f15; }
 .limit-status.error, .notice.error { color: var(--danger); }

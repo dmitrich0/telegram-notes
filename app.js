@@ -7,6 +7,7 @@
   // CloudStorage values are capped at 4096 characters; leave room for JSON metadata.
   const MAX_BODY_LENGTH = 3500;
   const AUTOSAVE_DELAY = 650;
+  const SAVE_TIMEOUT = 8000;
   const tg = window.Telegram?.WebApp;
   const cloudStorage = tg?.CloudStorage;
 
@@ -26,6 +27,7 @@
   let saveTimer = null;
   let saving = false;
   let hasUnsavedChanges = false;
+  let saveOperationId = 0;
 
   function applyTelegramTheme() {
     if (!tg) return;
@@ -101,7 +103,27 @@
     notice.classList.toggle('error', isError);
   }
 
-  function setSaveStatus(message) { saveStatus.textContent = message; }
+  function formatSavedAt(dateString) {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return 'Сохранено';
+    const now = new Date();
+    const time = new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }).format(date);
+    if (date.toDateString() === now.toDateString()) return `Сохранено сегодня в ${time}`;
+    const day = new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    }).format(date);
+    return `Сохранено ${day} в ${time}`;
+  }
+
+  function setSaveStatus(message, canRetry = false) {
+    saveStatus.textContent = message;
+    saveStatus.hidden = !message;
+    saveStatus.classList.toggle('retry', canRetry);
+    saveStatus.disabled = !canRetry;
+    saveStatus.title = canRetry ? 'Нажмите, чтобы повторить сохранение' : '';
+  }
 
   async function loadIndex() {
     const raw = await storageGet(INDEX_KEY);
@@ -158,7 +180,7 @@
     titleInput.value = note.title || '';
     bodyInput.value = note.body || '';
     updateLimitStatus();
-    setSaveStatus(isNew ? 'Изменено' : '');
+    setSaveStatus(isNew ? 'Изменено' : formatSavedAt(note.updatedAt));
     listScreen.hidden = true;
     editorScreen.hidden = false;
     tg?.BackButton?.show();
@@ -190,6 +212,17 @@
     };
   }
 
+  function createSaveTimeout(operationId) {
+    let timer;
+    const promise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        if (saveOperationId === operationId) saveOperationId += 1;
+        reject(new Error('Время ожидания сохранения истекло. Проверьте соединение и повторите попытку'));
+      }, SAVE_TIMEOUT);
+    });
+    return { promise, cancel: () => clearTimeout(timer) };
+  }
+
   async function saveCurrentNote() {
     clearTimeout(saveTimer);
     saveTimer = null;
@@ -198,24 +231,34 @@
     setSaveStatus('Сохраняем…');
     const note = currentValues();
     note.updatedAt = new Date().toISOString();
+    const operationId = ++saveOperationId;
+    const timeout = createSaveTimeout(operationId);
     try {
       const serialized = JSON.stringify(note);
       if (serialized.length > 4096) throw new Error('Текст заметки слишком длинный для CloudStorage');
       const meta = { id: note.id, title: displayTitle(note), updatedAt: note.updatedAt };
       const nextIndex = [...index.filter((item) => item.id !== note.id), meta];
-      // Save body first: a failed write never points the index to non-existent data.
-      await storageSet(NOTE_PREFIX + note.id, serialized);
-      await storageSet(INDEX_KEY, JSON.stringify(nextIndex));
-      currentNote = note;
-      index = nextIndex;
-      hasUnsavedChanges = false;
-      setSaveStatus('Сохранено');
+      const write = (async () => {
+        // Save body first: a failed write never points the index to non-existent data.
+        await storageSet(NOTE_PREFIX + note.id, serialized);
+        // CloudStorage has no abort API. Do not continue a request that timed out.
+        if (operationId !== saveOperationId) return;
+        await storageSet(INDEX_KEY, JSON.stringify(nextIndex));
+        if (operationId !== saveOperationId) return;
+        currentNote = note;
+        index = nextIndex;
+        hasUnsavedChanges = false;
+      })();
+      await Promise.race([write, timeout.promise]);
+      if (operationId !== saveOperationId) throw new Error('Сохранение отменено по тайм-ауту');
+      setSaveStatus(formatSavedAt(note.updatedAt));
       return true;
     } catch (error) {
-      setSaveStatus('Не сохранено');
+      setSaveStatus('Не сохранено — повторить', true);
       showNotice(`Не удалось сохранить: ${error.message}. Текст остаётся в редакторе.`, true);
       return false;
     } finally {
+      timeout.cancel();
       saving = false;
     }
   }
@@ -262,6 +305,9 @@
   el('create-first-note').addEventListener('click', newNote);
   el('back-to-list').addEventListener('click', returnToList);
   el('delete-note').addEventListener('click', deleteCurrentNote);
+  saveStatus.addEventListener('click', () => {
+    if (!saving && hasUnsavedChanges) saveCurrentNote();
+  });
   notesList.addEventListener('click', (event) => {
     const row = event.target.closest('.note-row');
     if (row) openNote(row.dataset.id);
