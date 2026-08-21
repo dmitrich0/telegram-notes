@@ -21,9 +21,6 @@
   const bodyInput = el('note-body');
   const saveStatus = el('save-status');
   const retrySave = el('retry-save');
-  const noteSkeleton = el('note-skeleton');
-  const pullToRefresh = el('pull-to-refresh');
-  const refreshLabel = el('refresh-label');
   const limitStatus = el('limit-status');
 
   let index = [];
@@ -32,11 +29,8 @@
   let saving = false;
   let hasUnsavedChanges = false;
   let saveOperationId = 0;
-  let loadOperationId = 0;
   let swipeState = null;
-  let suppressRowClickUntil = 0;
-  let pullStartY = null;
-  let pullDistance = 0;
+  let suppressOpenUntil = 0;
 
   function applyTelegramTheme() {
     if (!tg) return;
@@ -150,14 +144,6 @@
     notesList.replaceChildren();
     emptyState.hidden = notes.length !== 0;
     for (const note of notes) {
-      const item = document.createElement('div');
-      item.className = 'swipe-note';
-      item.dataset.id = note.id;
-      const deleteButton = document.createElement('button');
-      deleteButton.type = 'button';
-      deleteButton.className = 'swipe-delete';
-      deleteButton.setAttribute('aria-label', `Удалить заметку «${note.title || 'Новая заметка'}»`);
-      deleteButton.innerHTML = '<span class="swipe-delete-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 12H8L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"/></svg></span>';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'note-row';
@@ -169,8 +155,7 @@
       time.className = 'note-time';
       time.textContent = formatDate(note.updatedAt);
       button.append(title, time);
-      item.append(deleteButton, button);
-      notesList.append(item);
+      notesList.append(button);
     }
   }
 
@@ -190,8 +175,6 @@
   }
 
   function openEditor(note, isNew = false) {
-    editorScreen.classList.remove('loading');
-    noteSkeleton.hidden = true;
     currentNote = note;
     hasUnsavedChanges = isNew;
     titleInput.value = note.title || '';
@@ -205,32 +188,18 @@
   }
 
   function newNote() {
-    loadOperationId += 1;
     openEditor({ id: makeId(), title: '', body: '', updatedAt: new Date().toISOString() }, true);
   }
 
   async function openNote(id) {
-    const operationId = ++loadOperationId;
-    currentNote = null;
-    showNotice('');
-    editorScreen.classList.add('loading');
-    noteSkeleton.hidden = false;
-    listScreen.hidden = true;
-    editorScreen.hidden = false;
-    tg?.BackButton?.show();
+    showNotice('Загружаем…');
     try {
       const raw = await storageGet(NOTE_PREFIX + id);
       const note = safeParse(raw, null);
       if (!note || note.id !== id) throw new Error('Заметка не найдена или повреждена');
-      if (operationId !== loadOperationId) return;
+      showNotice('');
       openEditor(note);
     } catch (error) {
-      if (operationId !== loadOperationId) return;
-      editorScreen.classList.remove('loading');
-      noteSkeleton.hidden = true;
-      editorScreen.hidden = true;
-      listScreen.hidden = false;
-      tg?.BackButton?.hide();
       showNotice(`Не удалось открыть заметку: ${error.message}`, true);
     }
   }
@@ -299,13 +268,12 @@
 
   function scheduleSave() {
     hasUnsavedChanges = true;
-    setSaveStatus('');
+    setSaveStatus('Изменено');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveCurrentNote, AUTOSAVE_DELAY);
   }
 
   function returnToList() {
-    loadOperationId += 1;
     clearTimeout(saveTimer);
     // The list must open immediately. The request continues in the background.
     if (hasUnsavedChanges && !saving) saveCurrentNote();
@@ -315,7 +283,7 @@
     renderList();
   }
 
-  async function deleteNoteFromList(id) {
+  async function deleteNoteBySwipe(id) {
     const previousIndex = index;
     const nextIndex = index.filter((item) => item.id !== id);
     index = nextIndex;
@@ -338,23 +306,18 @@
     });
     if (!confirmed) return;
     clearTimeout(saveTimer);
-    const id = currentNote.id;
-    const previousIndex = index;
-    const nextIndex = index.filter((item) => item.id !== id);
-    index = nextIndex;
-    hasUnsavedChanges = false;
-    setSaveStatus('');
-    returnToList();
-    void (async () => {
-      try {
-        await storageSet(INDEX_KEY, JSON.stringify(nextIndex));
-        await storageRemove(NOTE_PREFIX + id);
-      } catch (error) {
-        index = previousIndex;
-        renderList();
-        showNotice(`Не удалось удалить заметку: ${error.message}`, true);
-      }
-    })();
+    try {
+      setSaveStatus('Удаляем…');
+      const nextIndex = index.filter((item) => item.id !== currentNote.id);
+      await storageRemove(NOTE_PREFIX + currentNote.id);
+      await storageSet(INDEX_KEY, JSON.stringify(nextIndex));
+      index = nextIndex;
+      hasUnsavedChanges = false;
+      returnToList();
+    } catch (error) {
+      setSaveStatus('Не удалено');
+      showNotice(`Не удалось удалить заметку: ${error.message}`, true);
+    }
   }
 
   el('create-note').addEventListener('click', newNote);
@@ -365,12 +328,7 @@
     if (!saving && hasUnsavedChanges) saveCurrentNote();
   });
   notesList.addEventListener('click', (event) => {
-    const deleteButton = event.target.closest('.swipe-delete');
-    if (deleteButton) {
-      deleteNoteFromList(deleteButton.closest('.swipe-note').dataset.id);
-      return;
-    }
-    if (Date.now() < suppressRowClickUntil) return;
+    if (Date.now() < suppressOpenUntil) return;
     const row = event.target.closest('.note-row');
     if (row) openNote(row.dataset.id);
   });
@@ -381,71 +339,39 @@
     scheduleSave();
   });
 
+  // A left swipe must finish beyond this distance. Moving the finger back cancels deletion.
+  const DELETE_SWIPE_DISTANCE = 96;
   notesList.addEventListener('pointerdown', (event) => {
-    const item = event.target.closest('.swipe-note');
-    if (!item || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    swipeState = { item, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false };
+    const row = event.target.closest('.note-row');
+    if (!row || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    swipeState = { id: row.dataset.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, isHorizontal: false };
   });
   notesList.addEventListener('pointermove', (event) => {
     if (!swipeState || event.pointerId !== swipeState.pointerId) return;
     const deltaX = event.clientX - swipeState.startX;
     const deltaY = event.clientY - swipeState.startY;
-    if (!swipeState.active && Math.abs(deltaX) <= Math.abs(deltaY)) return;
-    if (deltaX >= 0) return;
-    swipeState.active = true;
-    const offset = Math.max(-72, deltaX);
-    swipeState.item.classList.add('dragging');
-    swipeState.item.querySelector('.note-row').style.transform = `translateX(${offset}px)`;
+    if (!swipeState.isHorizontal) {
+      if (Math.abs(deltaX) < 12) return;
+      if (Math.abs(deltaX) <= Math.abs(deltaY)) {
+        swipeState = null;
+        return;
+      }
+      swipeState.isHorizontal = true;
+    }
   });
-  function finishSwipe(event) {
+  function finishDeleteSwipe(event) {
     if (!swipeState || event.pointerId !== swipeState.pointerId) return;
     const state = swipeState;
     swipeState = null;
-    state.item.classList.remove('dragging');
-    if (!state.active) return;
-    suppressRowClickUntil = Date.now() + 250;
-    const row = state.item.querySelector('.note-row');
-    const currentOffset = Number((row.style.transform.match(/-?\d+/) || [0])[0]);
-    row.style.transform = currentOffset < -36 ? 'translateX(-72px)' : '';
-  }
-  notesList.addEventListener('pointerup', finishSwipe);
-  notesList.addEventListener('pointercancel', finishSwipe);
-
-  listScreen.addEventListener('touchstart', (event) => {
-    if (window.scrollY > 0) return;
-    pullStartY = event.touches[0].clientY;
-    pullDistance = 0;
-  }, { passive: true });
-  listScreen.addEventListener('touchmove', (event) => {
-    if (pullStartY === null || window.scrollY > 0) return;
-    pullDistance = Math.max(0, Math.min(86, event.touches[0].clientY - pullStartY));
-    if (pullDistance > 0) {
-      pullToRefresh.classList.add('visible');
-      refreshLabel.textContent = pullDistance >= 58 ? 'Отпустите, чтобы обновить' : 'Потяните, чтобы обновить';
-    }
-  }, { passive: true });
-  listScreen.addEventListener('touchend', () => {
-    const shouldRefresh = pullDistance >= 58;
-    pullStartY = null;
-    pullDistance = 0;
-    if (shouldRefresh) refreshNotes();
-    else pullToRefresh.classList.remove('visible');
-  });
-
-  async function refreshNotes() {
-    pullToRefresh.classList.add('visible', 'refreshing');
-    refreshLabel.textContent = 'Обновляем…';
-    try {
-      index = await loadIndex();
-      renderList();
-    } catch (error) {
-      showNotice(`Не удалось обновить список: ${error.message}`, true);
-    } finally {
-      pullToRefresh.classList.remove('refreshing');
-      refreshLabel.textContent = 'Потяните, чтобы обновить';
-      setTimeout(() => pullToRefresh.classList.remove('visible'), 350);
+    const finalDistance = event.clientX - state.startX;
+    // Use the final position, not the furthest point: returning the finger cancels the swipe.
+    if (state.isHorizontal && finalDistance <= -DELETE_SWIPE_DISTANCE) {
+      suppressOpenUntil = Date.now() + 350;
+      deleteNoteBySwipe(state.id);
     }
   }
+  notesList.addEventListener('pointerup', finishDeleteSwipe);
+  notesList.addEventListener('pointercancel', () => { swipeState = null; });
 
   tg?.BackButton?.onClick(returnToList);
   window.addEventListener('pagehide', () => { if (hasUnsavedChanges) saveCurrentNote(); });
