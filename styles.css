@@ -29,8 +29,14 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.5px; }
 .icon-button > span { display: block; transform: translateY(-1px); }
 .icon-button:active, .primary-button:active { opacity: .75; transform: scale(.97); }
 .notes-list { margin: 14px -16px 0; }
-.note-row { width: 100%; display: block; padding: 15px 16px; text-align: left; color: inherit; background: var(--secondary-bg); border: 0; border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); cursor: pointer; touch-action: pan-y; }
-.note-row:first-child { border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); }
+.swipe-note { position: relative; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); }
+.swipe-note:first-child { border-top: 1px solid color-mix(in srgb, var(--hint) 20%, transparent); }
+.note-row { position: relative; z-index: 1; width: 100%; display: block; padding: 15px 16px; text-align: left; color: inherit; background: var(--secondary-bg); border: 0; cursor: pointer; touch-action: pan-y; transition: transform .2s ease; }
+.swipe-note.dragging .note-row { transition: none; }
+.swipe-delete-indicator { position: absolute; inset: 0 0 0 auto; display: grid; width: 96px; place-items: center; opacity: 0; pointer-events: none; }
+.swipe-delete-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; color: #fff; background: var(--danger); transform: scale(.72); transition: transform .15s ease; }
+.swipe-delete-indicator svg { width: 20px; height: 20px; fill: currentColor; }
+.swipe-note.armed .swipe-delete-icon, .swipe-note.deleting .swipe-delete-icon { transform: scale(1); }
 .note-row:active { background: color-mix(in srgb, var(--secondary-bg) 88%, var(--hint)); }
 .note-title { display: block; overflow: hidden; font-weight: 600; font-size: 16px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .note-time { display: block; margin-top: 4px; color: var(--hint); font-size: 13px; }

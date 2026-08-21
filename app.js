@@ -144,6 +144,13 @@
     notesList.replaceChildren();
     emptyState.hidden = notes.length !== 0;
     for (const note of notes) {
+      const item = document.createElement('div');
+      item.className = 'swipe-note';
+      item.dataset.id = note.id;
+      const indicator = document.createElement('div');
+      indicator.className = 'swipe-delete-indicator';
+      indicator.setAttribute('aria-hidden', 'true');
+      indicator.innerHTML = '<span class="swipe-delete-icon"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 12H8L7 9Zm3 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"/></svg></span>';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'note-row';
@@ -155,7 +162,8 @@
       time.className = 'note-time';
       time.textContent = formatDate(note.updatedAt);
       button.append(title, time);
-      notesList.append(button);
+      item.append(indicator, button);
+      notesList.append(item);
     }
   }
 
@@ -344,7 +352,16 @@
   notesList.addEventListener('pointerdown', (event) => {
     const row = event.target.closest('.note-row');
     if (!row || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    swipeState = { id: row.dataset.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, isHorizontal: false };
+    swipeState = {
+      id: row.dataset.id,
+      item: row.closest('.swipe-note'),
+      row,
+      indicator: row.closest('.swipe-note').querySelector('.swipe-delete-indicator'),
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      isHorizontal: false
+    };
   });
   notesList.addEventListener('pointermove', (event) => {
     if (!swipeState || event.pointerId !== swipeState.pointerId) return;
@@ -358,6 +375,11 @@
       }
       swipeState.isHorizontal = true;
     }
+    const offset = Math.max(-DELETE_SWIPE_DISTANCE, Math.min(0, deltaX));
+    swipeState.item.classList.add('dragging');
+    swipeState.item.classList.toggle('armed', offset <= -DELETE_SWIPE_DISTANCE);
+    swipeState.row.style.transform = `translateX(${offset}px)`;
+    swipeState.indicator.style.opacity = String(Math.min(1, Math.abs(offset) / 72));
   });
   function finishDeleteSwipe(event) {
     if (!swipeState || event.pointerId !== swipeState.pointerId) return;
@@ -367,11 +389,27 @@
     // Use the final position, not the furthest point: returning the finger cancels the swipe.
     if (state.isHorizontal && finalDistance <= -DELETE_SWIPE_DISTANCE) {
       suppressOpenUntil = Date.now() + 350;
-      deleteNoteBySwipe(state.id);
+      state.item.classList.remove('dragging');
+      state.item.classList.add('deleting');
+      state.row.style.transform = `translateX(-${DELETE_SWIPE_DISTANCE}px)`;
+      state.indicator.style.opacity = '1';
+      tg?.HapticFeedback?.impactOccurred('light');
+      setTimeout(() => deleteNoteBySwipe(state.id), 130);
+      return;
     }
+    state.item.classList.remove('dragging', 'armed');
+    state.row.style.transform = '';
+    state.indicator.style.opacity = '';
   }
   notesList.addEventListener('pointerup', finishDeleteSwipe);
-  notesList.addEventListener('pointercancel', () => { swipeState = null; });
+  notesList.addEventListener('pointercancel', () => {
+    if (!swipeState) return;
+    const state = swipeState;
+    swipeState = null;
+    state.item.classList.remove('dragging', 'armed');
+    state.row.style.transform = '';
+    state.indicator.style.opacity = '';
+  });
 
   tg?.BackButton?.onClick(returnToList);
   window.addEventListener('pagehide', () => { if (hasUnsavedChanges) saveCurrentNote(); });
